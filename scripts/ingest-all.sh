@@ -20,13 +20,6 @@ echo "Source: $EBOOKS_DIR"
 echo "Log:    $LOG"
 echo
 
-# Check ollama is up
-if ! curl -sf http://localhost:11434/api/tags &>/dev/null; then
-    echo "ERROR: Ollama is not running. Start it first:"
-    echo "  ./scripts/ollama-start.sh"
-    exit 1
-fi
-
 echo "Starting ingest at $(date)..." | tee "$LOG"
 echo | tee -a "$LOG"
 

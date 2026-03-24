@@ -13,13 +13,6 @@ NOMAD_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$NOMAD_DIR"
 source .venv/bin/activate
 
-# Check ollama is up
-if ! curl -sf http://localhost:11434/api/tags &>/dev/null; then
-    echo "ERROR: Ollama is not running. Start it first:"
-    echo "  ./scripts/ollama-start.sh"
-    exit 1
-fi
-
 echo "=== Stacks Wikipedia Ingest ==="
 echo
 

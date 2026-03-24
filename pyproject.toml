@@ -5,7 +5,7 @@ description = "Local knowledgebase with semantic search and RAG"
 requires-python = ">=3.12"
 dependencies = [
     "chromadb>=1.0.0",
-    "ollama>=0.4.0",
+    "llama-cpp-python>=0.3.0",
     "ebooklib>=0.18",
     "pymupdf>=1.25.0",
     "mobi>=0.3.3",

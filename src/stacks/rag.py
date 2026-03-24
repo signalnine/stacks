@@ -1,7 +1,8 @@
 """RAG chat - query the knowledgebase and chat with context."""
 
-import ollama as ollama_client
-from stacks.config import OLLAMA_HOST, DEFAULT_TOP_K, SIMILARITY_THRESHOLD
+from llama_cpp import Llama
+
+from stacks.config import CHAT_MODEL, N_GPU_LAYERS, DEFAULT_TOP_K, SIMILARITY_THRESHOLD
 from stacks.store import get_client, get_collection, search
 
 
@@ -16,6 +17,24 @@ RAG_CONTEXT_TEMPLATE = """Relevant context from the knowledgebase:
 
 ---
 Answer the user's question using the above context when relevant."""
+
+
+_chat_model: Llama | None = None
+_chat_model_path: str | None = None
+
+
+def _get_chat_model(model_path: str) -> Llama:
+    global _chat_model, _chat_model_path
+    if _chat_model is None or _chat_model_path != model_path:
+        del _chat_model
+        _chat_model = Llama(
+            model_path=model_path,
+            n_gpu_layers=N_GPU_LAYERS,
+            n_ctx=8192,
+            verbose=False,
+        )
+        _chat_model_path = model_path
+    return _chat_model
 
 
 def format_context(results: dict) -> str:
@@ -71,9 +90,5 @@ def chat(
 
     messages.append({"role": "user", "content": user_msg})
 
-    ollama = ollama_client.Client(host=OLLAMA_HOST)
-
-    if stream:
-        return ollama.chat(model=model, messages=messages, stream=True)
-    else:
-        return ollama.chat(model=model, messages=messages)
+    llm = _get_chat_model(model)
+    return llm.create_chat_completion(messages=messages, stream=stream)

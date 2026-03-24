@@ -1,14 +1,14 @@
 # Stacks
 
-Local knowledgebase with semantic search and RAG chat, powered by Ollama and ChromaDB. No Docker, no cloud, no nonsense.
+Local knowledgebase with semantic search and RAG chat, powered by llama.cpp and ChromaDB. No Docker, no cloud, no nonsense.
 
 Ingest your ebooks (epub, pdf, mobi, txt), search them semantically, and chat with an LLM that uses your library as context. Also includes an offline maps viewer.
 
 ## Requirements
 
 - Python 3.12+
-- [Ollama](https://ollama.com) installed locally
-- GPU recommended (embeddings are fast on even modest hardware)
+- NVIDIA GPU with CUDA (for llama-cpp-python GPU acceleration)
+- GGUF model files for embedding and chat
 
 ## Setup
 
@@ -17,15 +17,16 @@ cd ~/nomad
 ./scripts/setup.sh
 ```
 
-This creates a venv, installs dependencies, and pulls the embedding model.
+This creates a venv, installs dependencies with CUDA support, and checks for the embedding model.
 
-If you keep Ollama models somewhere other than the default, set the env var:
+You'll need the nomic-embed-text GGUF for embeddings:
 
 ```bash
-export OLLAMA_MODELS=/mnt/ai/models/ollama
+huggingface-cli download nomic-ai/nomic-embed-text-v1.5-GGUF \
+    nomic-embed-text-v1.5.Q8_0.gguf --local-dir /mnt/ai/models/
 ```
 
-Or make it permanent with the systemd override (see `scripts/setup.sh`).
+And any GGUF chat model you like (e.g. Qwen, Mixtral, etc.) in your models directory.
 
 ## Usage
 
@@ -66,11 +67,11 @@ stacks search "predictive processing and bayesian inference" -k 10
 Interactive RAG chat. Searches the knowledgebase for context, feeds it to the LLM.
 
 ```bash
-# Default model (qwen3)
+# Default model
 stacks ask
 
-# Pick a model
-stacks ask -m mixtral8x7b:latest
+# Pick a specific GGUF model
+stacks ask -m /mnt/ai/models/mixtral-8x7b.gguf
 
 # More context chunks
 stacks ask -k 10
@@ -140,7 +141,7 @@ Every step is resumable — safe to Ctrl+C and restart.
 │   ├── config.py       # All tunable settings
 │   ├── extract.py      # Text extraction (epub/pdf/mobi/txt)
 │   ├── chunker.py      # Text chunking for embedding
-│   ├── store.py        # ChromaDB + Ollama embedding interface
+│   ├── store.py        # ChromaDB + llama-cpp-python embedding interface
 │   ├── rag.py          # RAG chat logic
 │   ├── wiki.py         # Wikipedia dump download, filter, and ingest
 │   └── maps_server.py  # Local maps HTTP server
@@ -153,7 +154,6 @@ Every step is resumable — safe to Ctrl+C and restart.
 │   ├── setup.sh        # First-time setup
 │   ├── ingest-all.sh   # Batch ingest the ebook library
 │   ├── wiki-ingest.sh  # Download + filter + ingest Wikipedia
-│   ├── ollama-start.sh # Start ollama with the right env
 │   └── backup-db.sh    # Back up the vector database
 └── pyproject.toml
 ```
@@ -164,9 +164,10 @@ Edit `src/stacks/config.py` to change defaults:
 
 | Setting | Default | Description |
 |---|---|---|
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama API endpoint |
-| `EMBED_MODEL` | `nomic-embed-text:v1.5` | Model for embeddings (768d) |
-| `CHAT_MODEL` | `qwen3:latest` | Default chat model |
+| `MODELS_DIR` | `/mnt/ai/models` | Directory containing GGUF files |
+| `EMBED_MODEL` | `nomic-embed-text-v1.5.Q8_0.gguf` | Embedding model (768d) |
+| `CHAT_MODEL` | `qwen3-coder-30b-a3b.gguf` | Default chat model |
+| `N_GPU_LAYERS` | `-1` | GPU layers to offload (-1 = all) |
 | `CHUNK_SIZE` | `4000` | Characters per chunk (~1300 tokens) |
 | `CHUNK_OVERLAP` | `400` | Overlap between chunks |
 | `DEFAULT_TOP_K` | `5` | Number of search results |
@@ -175,6 +176,6 @@ Edit `src/stacks/config.py` to change defaults:
 
 ## How It Works
 
-1. **Ingest**: Extract text from documents → split into overlapping chunks → embed with `nomic-embed-text` via Ollama → store vectors + text in ChromaDB
+1. **Ingest**: Extract text from documents → split into overlapping chunks → embed with `nomic-embed-text` via llama-cpp-python → store vectors + text in ChromaDB
 2. **Search**: Embed your query → cosine similarity search against stored vectors → return ranked results
-3. **Chat**: Search for relevant chunks → inject as context into a system prompt → stream LLM response via Ollama
+3. **Chat**: Search for relevant chunks → inject as context into a system prompt → stream LLM response via llama-cpp-python

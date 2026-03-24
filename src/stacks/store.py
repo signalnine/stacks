@@ -1,9 +1,32 @@
 """ChromaDB vector store interface."""
 
 import chromadb
-import ollama as ollama_client
+from llama_cpp import Llama
+from llama_cpp._internals import LlamaContext
 
-from stacks.config import CHROMA_DIR, COLLECTION_NAME, EMBED_MODEL, OLLAMA_HOST
+from stacks.config import CHROMA_DIR, COLLECTION_NAME, EMBED_MODEL, N_GPU_LAYERS
+
+# Patch: BERT-style embedding models have no KV cache, but llama-cpp-python
+# tries to clear it. Skip the clear when memory isn't initialized.
+_orig_kv_clear = LlamaContext.kv_cache_clear
+LlamaContext.kv_cache_clear = lambda self: _orig_kv_clear(self) if self.memory is not None else None
+
+MAX_EMBED_CHARS = 7500  # ~2500 tokens, safe limit for nomic-embed-text (2048 token context)
+
+_embed_model: Llama | None = None
+
+
+def _get_embed_model() -> Llama:
+    global _embed_model
+    if _embed_model is None:
+        _embed_model = Llama(
+            model_path=str(EMBED_MODEL),
+            n_gpu_layers=N_GPU_LAYERS,
+            embedding=True,
+            n_ctx=2048,
+            verbose=False,
+        )
+    return _embed_model
 
 
 def get_client() -> chromadb.PersistentClient:
@@ -20,25 +43,21 @@ def get_collection(client: chromadb.PersistentClient) -> chromadb.Collection:
     )
 
 
-MAX_EMBED_CHARS = 7500  # ~2500 tokens, safe limit for nomic-embed-text (2048 token context)
-
-
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Generate embeddings via Ollama."""
-    client = ollama_client.Client(host=OLLAMA_HOST)
-    # Truncate to stay within model context length
-    truncated = [t[:MAX_EMBED_CHARS] for t in texts]
-    # Prefix for nomic-embed-text
-    prefixed = [f"search_document: {t}" for t in truncated]
-    resp = client.embed(model=EMBED_MODEL, input=prefixed)
-    return resp.embeddings
+    """Generate embeddings via llama-cpp-python."""
+    model = _get_embed_model()
+    embeddings = []
+    for text in texts:
+        truncated = text[:MAX_EMBED_CHARS]
+        vec = model.embed(f"search_document: {truncated}")
+        embeddings.append(vec)
+    return embeddings
 
 
 def embed_query(text: str) -> list[float]:
-    """Generate a query embedding via Ollama."""
-    client = ollama_client.Client(host=OLLAMA_HOST)
-    resp = client.embed(model=EMBED_MODEL, input=[f"search_query: {text}"])
-    return resp.embeddings[0]
+    """Generate a query embedding via llama-cpp-python."""
+    model = _get_embed_model()
+    return model.embed(f"search_query: {text}")
 
 
 def add_chunks(

@@ -2,10 +2,13 @@
 
 from pathlib import Path
 
-# Ollama
-OLLAMA_HOST = "http://localhost:11434"
-EMBED_MODEL = "nomic-embed-text:v1.5"
-CHAT_MODEL = "qwen3:latest"  # override via --model flag
+# Models (paths to GGUF files)
+MODELS_DIR = Path("/mnt/ai/models")
+EMBED_MODEL = MODELS_DIR / "nomic-embed-text-v1.5.Q8_0.gguf"
+CHAT_MODEL = MODELS_DIR / "qwen3-coder-30b-a3b.gguf"  # override via --model flag
+
+# GPU
+N_GPU_LAYERS = -1  # -1 = offload all layers
 
 # ChromaDB
 DATA_DIR = Path.home() / "stacks" / "data"

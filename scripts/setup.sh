@@ -17,36 +17,19 @@ else
     echo "Venv already exists."
 fi
 
-echo "Installing dependencies..."
 source .venv/bin/activate
-pip install -q -e .
 
-# Ollama
-if ! command -v ollama &>/dev/null; then
+# Install with CUDA support for llama-cpp-python
+echo "Installing dependencies (with CUDA support)..."
+CMAKE_ARGS="-DGGML_CUDA=on" pip install -q -e .
+
+# Check for embedding model
+EMBED_MODEL="/mnt/ai/models/nomic-embed-text-v1.5.Q8_0.gguf"
+if [ ! -f "$EMBED_MODEL" ]; then
     echo
-    echo "ERROR: ollama is not installed."
-    echo "Install it from https://ollama.com and re-run this script."
-    exit 1
-fi
-
-# Check if ollama is running
-if ! curl -sf http://localhost:11434/api/tags &>/dev/null; then
-    echo
-    echo "Ollama is not running. Starting it..."
-    if [ -n "${OLLAMA_MODELS:-}" ]; then
-        echo "Using OLLAMA_MODELS=$OLLAMA_MODELS"
-    fi
-    echo "Run: ./scripts/ollama-start.sh"
-    echo "Then re-run this script to pull the embedding model."
-    exit 0
-fi
-
-# Pull embedding model if missing
-if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
-    echo "Pulling embedding model (nomic-embed-text:v1.5)..."
-    ollama pull nomic-embed-text:v1.5
-else
-    echo "Embedding model already available."
+    echo "Embedding model not found at $EMBED_MODEL"
+    echo "Download it:"
+    echo "  huggingface-cli download nomic-ai/nomic-embed-text-v1.5-GGUF nomic-embed-text-v1.5.Q8_0.gguf --local-dir /mnt/ai/models/"
 fi
 
 echo

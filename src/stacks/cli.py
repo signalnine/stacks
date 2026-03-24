@@ -151,7 +151,7 @@ search_cmd.name = "search"
 
 
 @main.command()
-@click.option("--model", "-m", default=CHAT_MODEL, help="Ollama model for chat")
+@click.option("--model", "-m", default=str(CHAT_MODEL), help="Path to GGUF chat model")
 @click.option("--top-k", "-k", default=DEFAULT_TOP_K, help="Number of context chunks")
 def ask(model, top_k):
     """Interactive RAG chat with the knowledgebase."""
@@ -162,7 +162,8 @@ def ask(model, top_k):
         console.print("[yellow]Knowledgebase is empty. Run 'stacks ingest' first.[/yellow]")
         return
 
-    console.print(f"[bold]Stacks RAG Chat[/bold] (model: {model}, context chunks: {top_k})")
+    model_name = Path(model).stem
+    console.print(f"[bold]Stacks RAG Chat[/bold] (model: {model_name}, context chunks: {top_k})")
     console.print("[dim]Type 'quit' or Ctrl+C to exit.[/dim]\n")
 
     history = []
@@ -185,7 +186,8 @@ def ask(model, top_k):
         try:
             response_text = ""
             for chunk in chat(query, model=model, top_k=top_k, history=history):
-                token = chunk.message.content
+                delta = chunk["choices"][0].get("delta", {})
+                token = delta.get("content", "")
                 if token:
                     print(token, end="", flush=True)
                     response_text += token
