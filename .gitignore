@@ -1,0 +1,8 @@
+.venv/
+data/
+backups/
+maps/tiles
+__pycache__/
+*.egg-info/
+*.pyc
+.DS_Store

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stacks Maps</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/pmtiles@4.2.1/dist/pmtiles.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+        #map { width: 100vw; height: 100vh; }
+        #controls {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 1;
+            background: rgba(26, 26, 46, 0.9);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            backdrop-filter: blur(8px);
+        }
+        #controls h1 { font-size: 16px; margin-bottom: 8px; color: #7fdbca; }
+        #controls label { font-size: 13px; display: block; margin-bottom: 4px; }
+        #controls input, #controls select {
+            width: 100%;
+            padding: 6px 8px;
+            background: #16213e;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        #status {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            z-index: 1;
+            background: rgba(26, 26, 46, 0.9);
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            backdrop-filter: blur(8px);
+        }
+        .maplibregl-ctrl-attrib { font-size: 10px !important; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h1>Stacks Maps</h1>
+        <label for="pmtiles-url">PMTiles source:</label>
+        <input type="text" id="pmtiles-url" placeholder="path/to/tiles.pmtiles or URL">
+        <button id="load-btn" onclick="loadTiles()" style="
+            width: 100%; padding: 6px; background: #7fdbca; color: #1a1a2e;
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+        ">Load Map</button>
+    </div>
+    <div id="status">No map loaded. Enter a PMTiles path above.</div>
+    <div id="map"></div>
+
+    <script>
+        // Register PMTiles protocol
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        const map = new maplibregl.Map({
+            container: "map",
+            style: {
+                version: 8,
+                sources: {},
+                layers: [{
+                    id: "background",
+                    type: "background",
+                    paint: { "background-color": "#1a1a2e" }
+                }],
+                glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+            },
+            center: [0, 20],
+            zoom: 2,
+        });
+
+        map.addControl(new maplibregl.NavigationControl());
+        map.addControl(new maplibregl.ScaleControl());
+
+        function setStatus(msg) {
+            document.getElementById("status").textContent = msg;
+        }
+
+        async function loadTiles() {
+            const input = document.getElementById("pmtiles-url").value.trim();
+            if (!input) return;
+
+            // Support both local file:// paths and http(s) URLs
+            let url = input;
+            if (!url.startsWith("http") && !url.startsWith("pmtiles://")) {
+                // Assume it's served from the local server
+                url = `pmtiles://${window.location.origin}/${input}`;
+            }
+            if (url.startsWith("http")) {
+                url = `pmtiles://${url}`;
+            }
+
+            setStatus(`Loading: ${input}...`);
+
+            try {
+                // Remove old source/layers if reloading
+                if (map.getSource("pmtiles-source")) {
+                    map.getStyle().layers.forEach(l => {
+                        if (l.source === "pmtiles-source") map.removeLayer(l.id);
+                    });
+                    map.removeSource("pmtiles-source");
+                }
+
+                map.addSource("pmtiles-source", {
+                    type: "vector",
+                    url: url,
+                });
+
+                // Add basic layers for common OSM-like vector tiles
+                const layers = [
+                    { id: "water", type: "fill", "source-layer": "water",
+                      paint: { "fill-color": "#16213e" } },
+                    { id: "landcover", type: "fill", "source-layer": "landcover",
+                      paint: { "fill-color": "#1f3a2e", "fill-opacity": 0.5 } },
+                    { id: "landuse", type: "fill", "source-layer": "landuse",
+                      paint: { "fill-color": "#2a2a4a", "fill-opacity": 0.4 } },
+                    { id: "park", type: "fill", "source-layer": "park",
+                      paint: { "fill-color": "#1f3a2e", "fill-opacity": 0.6 } },
+                    { id: "boundary", type: "line", "source-layer": "boundary",
+                      paint: { "line-color": "#555", "line-width": 1, "line-dasharray": [3, 2] } },
+                    { id: "road", type: "line", "source-layer": "transportation",
+                      paint: { "line-color": "#444", "line-width": 1 } },
+                    { id: "building", type: "fill", "source-layer": "building",
+                      paint: { "fill-color": "#2a2a4a", "fill-opacity": 0.7 },
+                      minzoom: 13 },
+                    { id: "place-labels", type: "symbol", "source-layer": "place",
+                      layout: {
+                          "text-field": ["get", "name"],
+                          "text-size": ["interpolate", ["linear"], ["zoom"], 3, 10, 12, 14],
+                          "text-font": ["Open Sans Regular"],
+                      },
+                      paint: { "text-color": "#aaa", "text-halo-color": "#1a1a2e", "text-halo-width": 1 }
+                    },
+                ];
+
+                for (const layer of layers) {
+                    try {
+                        map.addLayer({ ...layer, source: "pmtiles-source" });
+                    } catch (e) {
+                        // source-layer might not exist in this tileset
+                    }
+                }
+
+                setStatus(`Loaded: ${input}`);
+            } catch (e) {
+                setStatus(`Error: ${e.message}`);
+                console.error(e);
+            }
+        }
+
+        // Check for ?url= parameter
+        const params = new URLSearchParams(window.location.search);
+        const urlParam = params.get("url");
+        if (urlParam) {
+            document.getElementById("pmtiles-url").value = urlParam;
+            map.on("load", loadTiles);
+        }
+    </script>
+</body>
+</html>
