@@ -1,6 +1,6 @@
 # Stacks
 
-Local knowledgebase with semantic search and RAG chat, powered by llama.cpp and ChromaDB. No Docker, no cloud, no nonsense.
+Minimal, local knowledgebase with semantic search and RAG chat, powered by llama.cpp and ChromaDB.
 
 Ingest your ebooks (epub, pdf, mobi, txt), search them semantically, and chat with an LLM that uses your library as context. Also includes an offline maps viewer.
 
